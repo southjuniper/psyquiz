@@ -1,4 +1,4 @@
-// =============== PSY TEST QUIZ ===============
+// ====== Quiz Logic ======
 
 const questions = [
   {
@@ -125,173 +125,120 @@ function showResult() {
   resultText.textContent = `${label}: ${explanation}`;
 }
 
-// стартуем квиз
+// Init quiz
 renderQuestion();
 
+// ====== Mint NFT via Mini App Wallet + ethers.js ======
 
-// =============== NFT MINT LOGIC ===============
-
-// Адрес ТВОЕГО контракта на Base mainnet
+// Твой задеплоенный контракт на Base mainnet:
 const NFT_CONTRACT_ADDRESS = "0xAFEB1ae391d005a71a0f48a9c8193279B176d204";
 
-// ABI с нужными функциями (PRICE, mint, minted)
+// ABI: PRICE, mint(), minted(address)
 const NFT_CONTRACT_ABI = [
   {
-    "inputs": [],
-    "name": "PRICE",
-    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
+    inputs: [],
+    name: "PRICE",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
   },
   {
-    "inputs": [],
-    "name": "mint",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
+    inputs: [],
+    name: "mint",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function"
   },
   {
-    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
-    "name": "minted",
-    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-    "stateMutability": "view",
-    "type": "function"
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "minted",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function"
   }
 ];
 
-const BASE_CHAIN_ID = 8453n; // Base mainnet chainId as bigint
-
-function setStatus(msg, color) {
-  mintStatus.textContent = msg;
-  if (color) mintStatus.style.color = color;
-}
-
-// Получаем provider+signer: либо из miniapp SDK, либо из window.ethereum
+// Универсальный способ получить provider + signer:
+// - в Farcaster/Base mini-app: через sdk.wallet.getEthereumProvider()
+// - в обычном браузере: через window.ethereum (Metamask)
 async function getProviderAndSigner() {
-  // 1) Пытаемся через Farcaster MiniApp SDK
-  const sdk = window.__miniappSdk;
-  if (sdk && sdk.wallet && sdk.wallet.getEthereumProvider) {
-    try {
-      const ethProvider = await sdk.wallet.getEthereumProvider();
-      if (ethProvider) {
-        const provider = new ethers.BrowserProvider(ethProvider);
-        const signer = await provider.getSigner();
-        return { provider, signer, source: "miniapp" };
-      }
-    } catch (e) {
-      console.log("sdk.wallet.getEthereumProvider error:", e);
-      // пойдём дальше, попробуем MetaMask
-    }
+  // 1) mini-app SDK
+  if (window.__miniappSdk) {
+    const sdk = window.__miniappSdk;
+    const ethProvider = await sdk.wallet.getEthereumProvider();
+    const provider = new ethers.BrowserProvider(ethProvider);
+    const signer = await provider.getSigner();
+    return { provider, signer, env: "miniapp" };
   }
 
-  // 2) Фоллбек: обычный браузер + MetaMask
+  // 2) обычный браузер с MetaMask
   if (window.ethereum) {
     const provider = new ethers.BrowserProvider(window.ethereum);
-    // запросить аккаунты
     await provider.send("eth_requestAccounts", []);
     const signer = await provider.getSigner();
-    return { provider, signer, source: "browser" };
+    return { provider, signer, env: "browser" };
   }
 
-  throw new Error("No wallet provider found. Open this app in Farcaster/Base or in a browser with MetaMask.");
-}
-
-// Проверяем/переключаем сеть на Base mainnet (8453)
-async function ensureBaseNetwork(provider, source) {
-  const network = await provider.getNetwork();
-  const currentId = network.chainId;
-
-  if (currentId === BASE_CHAIN_ID) return;
-
-  // Если мы в обычном браузере и есть window.ethereum — попробуем переключить сеть
-  if (source === "browser" && window.ethereum && window.ethereum.request) {
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x2105" }] // 0x2105 = 8453
-      });
-      return;
-    } catch (e) {
-      console.log("wallet_switchEthereumChain error:", e);
-      throw new Error("Please switch your wallet to Base mainnet (chainId 8453). Current chainId: " + currentId.toString());
-    }
-  }
-
-  // В miniapp или если не удалось переключить
-  throw new Error("Please switch your wallet to Base mainnet (chainId 8453). Current chainId: " + currentId.toString());
+  throw new Error(
+    "No compatible wallet found. Open this app in a Farcaster client or with a browser wallet (MetaMask)."
+  );
 }
 
 async function mintNft() {
+  mintStatus.textContent = "Preparing transaction...";
+  mintStatus.style.color = "#f5f5ff";
+
   try {
-    setStatus("Preparing transaction...", "#f5f5ff");
+    const { provider, signer, env } = await getProviderAndSigner();
 
-    const { provider, signer, source } = await getProviderAndSigner();
-    await ensureBaseNetwork(provider, source);
+    // Проверяем сеть — должен быть Base mainnet (chainId 8453)
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    if (chainId !== 8453) {
+      throw new Error(
+        `Please switch your wallet to Base mainnet (chainId 8453). Current chainId: ${chainId}`
+      );
+    }
 
+    const userAddress = await signer.getAddress();
     const contract = new ethers.Contract(
       NFT_CONTRACT_ADDRESS,
       NFT_CONTRACT_ABI,
       signer
     );
 
-    const userAddress = await signer.getAddress();
-
-    // 1) Проверяем, не минтил ли уже этот адрес
-    let alreadyMinted = false;
-    try {
-      alreadyMinted = await contract.minted(userAddress);
-    } catch (e) {
-      console.log("minted(address) check failed (not critical):", e);
-    }
-
-    if (alreadyMinted) {
-      setStatus("You already minted this NFT with this wallet.", "#ffb36b");
+    // ✅ Ключевой момент: проверяем minted(address) ДО транзакции
+    const already = await contract.minted(userAddress);
+    if (already) {
+      mintStatus.textContent = "You already minted this badge.";
+      mintStatus.style.color = "#00e0a0";
       return;
     }
 
-    // 2) Узнаём цену
-    let price;
-    try {
-      price = await contract.PRICE();
-    } catch (e) {
-      console.log("PRICE() call failed:", e);
-      // как fallback — жёстко 0.0001 ETH
-      price = ethers.parseEther("0.0001");
-    }
+    // Берем цену из контракта
+    const price = await contract.PRICE();
+    mintStatus.textContent = "Waiting for wallet confirmation...";
 
-    setStatus("Waiting for wallet confirmation...", "#f5f5ff");
-
-    // 3) Отправляем транзакцию mint
     const tx = await contract.mint({ value: price });
-    setStatus("Minting... waiting for confirmation...", "#f5f5ff");
-
+    mintStatus.textContent = "Minting... waiting for confirmation...";
     const receipt = await tx.wait();
 
-    if (receipt && receipt.status === 1n || receipt.status === 1) {
-      setStatus("✅ NFT minted successfully!", "#00e0a0");
+    if (receipt.status === 1) {
+      mintStatus.textContent = "✅ NFT minted successfully!";
+      mintStatus.style.color = "#00e0a0";
     } else {
-      setStatus("Transaction failed.", "#ff8b8b");
+      mintStatus.textContent = "Transaction failed on-chain.";
+      mintStatus.style.color = "#ff8b8b";
     }
   } catch (err) {
-    console.error("mintNft error:", err);
+    console.error(err);
 
-    const msg = String(err?.message || err || "");
-    // Немного нормализуем типичные ошибки
-    if (msg.includes("user rejected") || msg.includes("User rejected")) {
-      setStatus("Transaction rejected by user.", "#ffb36b");
-      return;
-    }
-    if (msg.includes("already minted") || msg.includes("Already minted")) {
-      setStatus("You already minted this NFT with this wallet.", "#ffb36b");
-      return;
-    }
-    if (msg.includes("missing revert data") || msg.includes("CALL_EXCEPTION")) {
-      // Скорее всего, это повторный mint или другая бизнес-логика контракта
-      setStatus("Mint failed on-chain (maybe already minted?).", "#ff8b8b");
-      return;
-    }
-
-    setStatus("Error: " + msg, "#ff8b8b");
+    // Если это CALL_EXCEPTION / missing revert data через mini-app-провайдер
+    // мы всё равно уже проверяем minted() перед этим, так что
+    // до сюда, скорее всего, дойдут другие ошибки.
+    const msg = err?.message || String(err);
+    mintStatus.textContent = "Error: " + msg;
+    mintStatus.style.color = "#ff8b8b";
   }
 }
 
