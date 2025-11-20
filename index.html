@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Psy Test & NFT Badge</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- ethers.js UMD -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- Farcaster / Base Mini App embed meta -->
+  <!-- TODO: after you deploy to Vercel, replace YOUR_DOMAIN with actual domain -->
+  <meta
+    name="fc:miniapp"
+    content='{
+      "version": "1",
+      "imageUrl": "https://YOUR_DOMAIN/preview.png",
+      "button": {
+        "title": "Start test",
+        "action": {
+          "type": "launch_miniapp",
+          "name": "Psy Test",
+          "url": "https://YOUR_DOMAIN",
+          "splashImageUrl": "https://YOUR_DOMAIN/icon.png",
+          "splashBackgroundColor": "#1f1b4a"
+        }
+      }
+    }'
+  />
+</head>
+<body>
+  <div class="app-container">
+    <h1>Psy Test & NFT Badge</h1>
+    <p class="subtitle">
+      Answer a few questions about your mindset and mint a unique NFT badge.
+    </p>
+
+    <div id="quiz-container">
+      <div id="question"></div>
+      <div id="options"></div>
+      <button id="next-btn" disabled>Next</button>
+    </div>
+
+    <div id="result-container" class="hidden">
+      <h2>Your Result</h2>
+      <p id="result-text"></p>
+
+      <div class="mint-section">
+        <p class="mint-info">
+          You can now mint a Psy Test NFT badge as proof you completed this test.
+        </p>
+        <button id="mint-btn">Mint NFT (0.0001 ETH)</button>
+        <p id="mint-status"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini App SDK: call ready() so splash screen hides in Farcaster/Base -->
+  <script type="module">
+    import { sdk } from "https://esm.sh/@farcaster/miniapp-sdk";
+
+    window.__miniappSdk = sdk;
+
+    window.addEventListener("load", async () => {
+      try {
+        await sdk.actions.ready();
+        console.log("Mini app ready");
+      } catch (err) {
+        console.log("Not running inside Farcaster/Base, sdk.ready failed:", err);
+      }
+    });
+  </script>
+
+  <script src="quiz.js"></script>
+</body>
+</html>
