@@ -1,0 +1,35 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "baseBuilder": {
+    "ownerAddress": "0x7688582b861c4F753583069BcAB8061DE7FAE4531"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Psy Test & NFT Badge",
+    "homeUrl": "https://psyquiz-fawn.vercel.app/",
+    "iconUrl": "https://psyquiz-fawn.vercel.app/icon.png",
+    "splashImageUrl": "https://psyquiz-fawn.vercel.app/icon.png",
+    "splashBackgroundColor": "#1f1b4a",
+
+    "subtitle": "Short psychological test",
+    "description": "A minimal psychological test that lets users mint an NFT badge on Base.",
+    "tagline": "Reflect & mint your badge",
+
+    "imageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
+    "heroImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
+    "ogTitle": "Psy Test & NFT Badge",
+    "ogDescription": "Complete a short psyche test and mint a unique NFT badge.",
+    "ogImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
+
+    "primaryCategory": "games",
+    "tags": ["psy-test", "mindset", "nft"],
+
+    "screenshotUrls": [
+      "https://psyquiz-fawn.vercel.app/preview.png"
+    ]
+  }
+}
