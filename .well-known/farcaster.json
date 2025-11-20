@@ -9,25 +9,24 @@
   },
   "miniapp": {
     "version": "1",
-    "name": "Psy Quiz",
+    "name": "Psy Test and NFT Badge",
     "homeUrl": "https://psyquiz-fawn.vercel.app/",
     "iconUrl": "https://psyquiz-fawn.vercel.app/icon.png",
     "splashImageUrl": "https://psyquiz-fawn.vercel.app/icon.png",
     "splashBackgroundColor": "#1f1b4a",
 
-    "subtitle": "Short mindset quiz",
-    "description": "A simple quiz that gives you a mindset profile and lets you mint a badge on Base.",
-    "tagline": "Mindset quiz badge", 
-
-    "primaryCategory": "games",
-    "tags": ["quiz", "mindset", "nft"],
+    "subtitle": "Short mindset quiz and NFT",
+    "description": "Answer a short mindset quiz and mint an NFT badge on Base. Not clinical advice.",
+    "tagline": "Reflect and mint your badge",
 
     "imageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
     "heroImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
-    "ogTitle": "Psy Quiz",
-    "ogDescription": "Short mindset quiz with a mintable badge.",
+    "ogTitle": "Psy Test and NFT Badge",
+    "ogDescription": "Complete a short mindset quiz and mint a unique NFT badge.",
     "ogImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
 
+    "primaryCategory": "games",
+    "tags": ["psy-test", "nft", "quiz"],
     "screenshotUrls": [
       "https://psyquiz-fawn.vercel.app/preview.png"
     ]
