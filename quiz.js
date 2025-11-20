@@ -125,57 +125,89 @@ function showResult() {
   resultText.textContent = `${label}: ${explanation}`;
 }
 
-// Init
+// Init quiz
 renderQuestion();
 
-// ====== Mint NFT via Mini App Wallet + ethers.js ======
+// ====== Mint NFT via Mini App SDK + ethers.js (fallback to browser wallet) ======
 
-// TODO: replace with your actual deployed contract address on Base
+// ВСТАВЬ СЮДА СВОЙ АДРЕС КОНТРАКТА НА BASE MAINNET
 const NFT_CONTRACT_ADDRESS = "0xAFEB1ae391d005a71a0f48a9c8193279B176d204";
+const BASE_CHAIN_ID = 8453n; // Base mainnet chainId
 
-// ABI only with required functions
+// ABI только с нужными функциями
 const NFT_CONTRACT_ABI = [
   {
-    "inputs": [],
-    "name": "PRICE",
-    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
+    inputs: [],
+    name: "PRICE",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
   },
   {
-    "inputs": [],
-    "name": "mint",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
+    inputs: [],
+    name: "mint",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function"
   }
 ];
+
+// Получаем EIP-1193 провайдер:
+// 1) если есть Mini App SDK и поддерживается wallet.getEthereumProvider → используем его
+// 2) иначе, если есть window.ethereum → используем браузерный кошелёк
+async function getWalletProvider() {
+  // Пытаемся использовать Mini App SDK
+  try {
+    const sdk = window.__miniappSdk;
+    if (sdk && sdk.wallet && typeof sdk.wallet.getEthereumProvider === "function") {
+      // Optionally, можно проверить capabilities
+      if (typeof sdk.getCapabilities === "function") {
+        try {
+          const caps = await sdk.getCapabilities();
+          if (Array.isArray(caps) && caps.includes("wallet.getEthereumProvider")) {
+            const ethProvider = await sdk.wallet.getEthereumProvider();
+            return { type: "miniapp", provider: ethProvider };
+          }
+        } catch (e) {
+          console.log("Miniapp capabilities check failed:", e);
+        }
+      } else {
+        const ethProvider = await sdk.wallet.getEthereumProvider();
+        return { type: "miniapp", provider: ethProvider };
+      }
+    }
+  } catch (e) {
+    console.log("Miniapp provider not available:", e);
+  }
+
+  // Фоллбек на обычный браузерный кошелёк (MetaMask и т.п.)
+  if (typeof window !== "undefined" && window.ethereum) {
+    return { type: "browser", provider: window.ethereum };
+  }
+
+  throw new Error(
+    "No wallet available. Open this app inside a Farcaster client or use a browser wallet (e.g. MetaMask)."
+  );
+}
 
 async function mintNft() {
   mintStatus.textContent = "Preparing transaction...";
   mintStatus.style.color = "#f5f5ff";
 
   try {
-    const sdk = window.__miniappSdk;
-    if (!sdk) {
-      mintStatus.textContent =
-        "Not running inside Farcaster/Base. Open this app in a Farcaster client.";
-      mintStatus.style.color = "#ff8b8b";
-      return;
+    const { provider: eip1193Provider } = await getWalletProvider();
+
+    // ethers.js v6 BrowserProvider
+    const provider = new ethers.BrowserProvider(eip1193Provider);
+    const network = await provider.getNetwork();
+
+    if (network.chainId !== BASE_CHAIN_ID) {
+      throw new Error(
+        `Please switch your wallet to Base mainnet (chainId 8453). Current chainId: ${network.chainId.toString()}`
+      );
     }
 
-    // EIP-1193 provider from Mini App SDK
-    const ethProvider = await sdk.wallet.getEthereumProvider();
-
-    if (!ethProvider) {
-      mintStatus.textContent =
-        "This mini-app must be opened from Farcaster/Base to mint the NFT.";
-      mintStatus.style.color = "#ff8b8b";
-      return;
-    }
-    const provider = new ethers.BrowserProvider(ethProvider);
     const signer = await provider.getSigner();
-
     const contract = new ethers.Contract(
       NFT_CONTRACT_ADDRESS,
       NFT_CONTRACT_ABI,
@@ -189,7 +221,7 @@ async function mintNft() {
     mintStatus.textContent = "Minting... waiting for confirmation...";
     const receipt = await tx.wait();
 
-    if (receipt.status === 1) {
+    if (receipt.status === 1n || receipt.status === 1) {
       mintStatus.textContent = "✅ NFT minted successfully!";
       mintStatus.style.color = "#00e0a0";
     } else {
