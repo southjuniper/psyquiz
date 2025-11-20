@@ -125,15 +125,16 @@ function showResult() {
   resultText.textContent = `${label}: ${explanation}`;
 }
 
-// Init
+// Инициализация квиза
 renderQuestion();
 
 // ====== Mint NFT via Mini App Wallet + ethers.js ======
 
-// ВСТАВЬ СВОЙ АДРЕС КОНТРАКТА НА BASE MAINNET
+// Адрес твоего контракта на Base mainnet
 const NFT_CONTRACT_ADDRESS = "0xAFEB1ae391d005a71a0f48a9c8193279B176d204";
+const BASE_CHAIN_ID = 8453n; // Base mainnet chainId
 
-// ABI только нужных функций
+// ABI только с нужными функциями
 const NFT_CONTRACT_ABI = [
   {
     inputs: [],
@@ -151,63 +152,59 @@ const NFT_CONTRACT_ABI = [
   }
 ];
 
-// Получение провайдера и signer с учётом Farcaster / браузера
 async function getProviderAndSigner() {
-  // 1) Пытаемся через Mini App SDK (Farcaster/Base)
-  const sdk = window.__miniappSdk;
-  if (sdk && sdk.wallet && sdk.wallet.getEthereumProvider) {
-    const ethProvider = await sdk.wallet.getEthereumProvider();
-    const provider = new ethers.BrowserProvider(ethProvider);
-    const signer = await provider.getSigner();
-    return { provider, signer, rawProvider: ethProvider };
+  let provider = null;
+  let signer = null;
+
+  // 1) Пытаемся взять провайдер из Farcaster Mini App SDK
+  try {
+    const sdk = window.__miniappSdk;
+    if (sdk && sdk.wallet && sdk.wallet.getEthereumProvider) {
+      const ethProvider = await sdk.wallet.getEthereumProvider();
+      provider = new ethers.BrowserProvider(ethProvider);
+      signer = await provider.getSigner();
+      return { provider, signer, source: "sdk" };
+    }
+  } catch (e) {
+    console.log("sdk provider failed, fallback to window.ethereum:", e);
   }
 
-  // 2) Обычный браузерный кошелёк
+  // 2) Фоллбэк — обычный браузерный кошелек (MetaMask и т.п.)
   if (window.ethereum) {
-    const ethProvider = window.ethereum;
-    const provider = new ethers.BrowserProvider(ethProvider);
-    // запросить аккаунты (MetaMask connect)
-    await ethProvider.request({ method: "eth_requestAccounts" });
-    const signer = await provider.getSigner();
-    return { provider, signer, rawProvider: ethProvider };
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = await provider.getSigner();
+    return { provider, signer, source: "browser" };
   }
 
-  throw new Error(
-    "No wallet provider found. Open this app in Farcaster or with a browser wallet like MetaMask."
-  );
+  throw new Error("No wallet provider found. Open this app in a Farcaster client or with a browser wallet like MetaMask.");
 }
 
-// Проверка и переключение сети на Base mainnet
-async function ensureBaseNetwork(rawProvider, provider) {
+async function ensureBaseNetwork(provider, source) {
   const network = await provider.getNetwork();
-  const chainIdNum = Number(network.chainId);
+  const chainId = network.chainId;
 
-  if (chainIdNum === 8453) {
-    // уже Base mainnet
-    return;
-  }
+  if (chainId === BASE_CHAIN_ID) return;
 
-  // Пытаемся переключить сеть (работает в MetaMask и большинстве EIP-1193 провайдеров)
-  if (rawProvider && rawProvider.request) {
+  // Если обычный браузер – попробуем переключить сеть
+  if (source === "browser" && window.ethereum) {
     try {
-      await rawProvider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x2105" }] // 8453 в hex
-      });
+      await provider.send("wallet_switchEthereumChain", [
+        { chainId: "0x2105" } // 8453 in hex
+      ]);
       return;
-    } catch (switchErr) {
-      // Если сеть не добавлена — можно пробовать addChain
-      // но чтобы не усложнять, просто дадим понятное сообщение
-      console.error("wallet_switchEthereumChain error:", switchErr);
+    } catch (err) {
+      console.log("wallet_switchEthereumChain failed:", err);
       throw new Error(
         "Please switch your wallet to Base mainnet (chainId 8453) and try again."
       );
     }
-  } else {
-    throw new Error(
-      "Wallet does not support network switch. Please switch to Base mainnet manually."
-    );
   }
+
+  // Если это Mini App SDK или переключить нельзя:
+  throw new Error(
+    `Please switch your wallet to Base mainnet (chainId 8453). Current chainId: ${chainId.toString()}`
+  );
 }
 
 async function mintNft() {
@@ -215,10 +212,8 @@ async function mintNft() {
   mintStatus.style.color = "#f5f5ff";
 
   try {
-    const { provider, signer, rawProvider } = await getProviderAndSigner();
-
-    // Убедиться, что мы на Base mainnet
-    await ensureBaseNetwork(rawProvider, provider);
+    const { provider, signer, source } = await getProviderAndSigner();
+    await ensureBaseNetwork(provider, source);
 
     const contract = new ethers.Contract(
       NFT_CONTRACT_ADDRESS,
@@ -226,11 +221,13 @@ async function mintNft() {
       signer
     );
 
+    // Читаем цену из контракта
     const price = await contract.PRICE();
     mintStatus.textContent = "Waiting for wallet confirmation...";
 
     const tx = await contract.mint({ value: price });
     mintStatus.textContent = "Minting... waiting for confirmation...";
+
     const receipt = await tx.wait();
 
     if (receipt.status === 1) {
@@ -241,14 +238,18 @@ async function mintNft() {
       mintStatus.style.color = "#ff8b8b";
     }
   } catch (err) {
-    console.error("Mint error:", err);
-    let msg = "Unknown error";
-    if (err && typeof err === "object") {
-      msg = err.message || JSON.stringify(err);
-    } else if (typeof err === "string") {
-      msg = err;
+    console.error(err);
+    const msg =
+      err?.shortMessage ||
+      err?.info?.error?.message ||
+      err?.message ||
+      String(err);
+
+    if (msg.includes("Already minted")) {
+      mintStatus.textContent = "You already minted this NFT.";
+    } else {
+      mintStatus.textContent = "Error: " + msg;
     }
-    mintStatus.textContent = "Error: " + msg;
     mintStatus.style.color = "#ff8b8b";
   }
 }
