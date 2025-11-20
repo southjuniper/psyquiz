@@ -131,7 +131,7 @@ renderQuestion();
 // ====== Mint NFT via Mini App Wallet + ethers.js ======
 
 // TODO: replace with your actual deployed contract address on Base
-const NFT_CONTRACT_ADDRESS = "0xYOUR_CONTRACT_ADDRESS_HERE";
+const NFT_CONTRACT_ADDRESS = "0xAFEB1ae391d005a71a0f48a9c8193279B176d204";
 
 // ABI only with required functions
 const NFT_CONTRACT_ABI = [
