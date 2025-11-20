@@ -166,6 +166,13 @@ async function mintNft() {
 
     // EIP-1193 provider from Mini App SDK
     const ethProvider = await sdk.wallet.getEthereumProvider();
+
+    if (!ethProvider) {
+      mintStatus.textContent =
+        "This mini-app must be opened from Farcaster/Base to mint the NFT.";
+      mintStatus.style.color = "#ff8b8b";
+      return;
+    }
     const provider = new ethers.BrowserProvider(ethProvider);
     const signer = await provider.getSigner();
 
