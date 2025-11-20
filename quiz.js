@@ -125,15 +125,15 @@ function showResult() {
   resultText.textContent = `${label}: ${explanation}`;
 }
 
-// Init quiz
+// Init
 renderQuestion();
 
 // ====== Mint NFT via Mini App Wallet + ethers.js ======
 
-// TODO: вставь сюда свой реальный адрес контракта на Base mainnet
+// ВСТАВЬ СВОЙ АДРЕС КОНТРАКТА НА BASE MAINNET
 const NFT_CONTRACT_ADDRESS = "0xAFEB1ae391d005a71a0f48a9c8193279B176d204";
 
-// ABI только с нужными функциями
+// ABI только нужных функций
 const NFT_CONTRACT_ABI = [
   {
     inputs: [],
@@ -151,88 +151,63 @@ const NFT_CONTRACT_ABI = [
   }
 ];
 
-const BASE_CHAIN_ID_HEX = "0x2105"; // 8453
-
+// Получение провайдера и signer с учётом Farcaster / браузера
 async function getProviderAndSigner() {
-  // 1) Пытаемся взять провайдер из Farcaster MiniApp SDK
-  let ethProvider = null;
-  let context = "";
-
-  try {
-    const sdk = window.__miniappSdk;
-    if (sdk) {
-      ethProvider = await sdk.wallet.getEthereumProvider();
-      context = "miniapp";
-    }
-  } catch (e) {
-    console.log("Miniapp SDK provider not available:", e);
+  // 1) Пытаемся через Mini App SDK (Farcaster/Base)
+  const sdk = window.__miniappSdk;
+  if (sdk && sdk.wallet && sdk.wallet.getEthereumProvider) {
+    const ethProvider = await sdk.wallet.getEthereumProvider();
+    const provider = new ethers.BrowserProvider(ethProvider);
+    const signer = await provider.getSigner();
+    return { provider, signer, rawProvider: ethProvider };
   }
 
-  // 2) Если не miniapp — пробуем MetaMask / обычный браузер
-  if (!ethProvider && window.ethereum) {
-    ethProvider = window.ethereum;
-    context = "browser";
-
-    // запросить подключение аккаунта
+  // 2) Обычный браузерный кошелёк
+  if (window.ethereum) {
+    const ethProvider = window.ethereum;
+    const provider = new ethers.BrowserProvider(ethProvider);
+    // запросить аккаунты (MetaMask connect)
     await ethProvider.request({ method: "eth_requestAccounts" });
+    const signer = await provider.getSigner();
+    return { provider, signer, rawProvider: ethProvider };
   }
 
-  if (!ethProvider) {
-    throw new Error(
-      "No wallet found. Open this app inside Farcaster/Base or install MetaMask."
-    );
+  throw new Error(
+    "No wallet provider found. Open this app in Farcaster or with a browser wallet like MetaMask."
+  );
+}
+
+// Проверка и переключение сети на Base mainnet
+async function ensureBaseNetwork(rawProvider, provider) {
+  const network = await provider.getNetwork();
+  const chainIdNum = Number(network.chainId);
+
+  if (chainIdNum === 8453) {
+    // уже Base mainnet
+    return;
   }
 
-  // Проверяем сеть
-  const chainIdHex = await ethProvider.request({ method: "eth_chainId" });
-
-  if (chainIdHex !== BASE_CHAIN_ID_HEX) {
-    if (context === "browser") {
-      // Попробуем переключить сеть в MetaMask
-      try {
-        await ethProvider.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: BASE_CHAIN_ID_HEX }]
-        });
-      } catch (switchErr) {
-        // Если сеть ещё не добавлена – добавим
-        if (switchErr.code === 4902) {
-          await ethProvider.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: BASE_CHAIN_ID_HEX,
-                chainName: "Base",
-                rpcUrls: ["https://mainnet.base.org"],
-                nativeCurrency: {
-                  name: "Ether",
-                  symbol: "ETH",
-                  decimals: 18
-                },
-                blockExplorerUrls: ["https://basescan.org"]
-              }
-            ]
-          });
-        } else {
-          throw new Error(
-            "Please switch your wallet to Base mainnet (chainId 8453)."
-          );
-        }
-      }
-    } else {
-      // В miniapp — просто сообщаем, что сеть не та (обычно там уже Base)
+  // Пытаемся переключить сеть (работает в MetaMask и большинстве EIP-1193 провайдеров)
+  if (rawProvider && rawProvider.request) {
+    try {
+      await rawProvider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x2105" }] // 8453 в hex
+      });
+      return;
+    } catch (switchErr) {
+      // Если сеть не добавлена — можно пробовать addChain
+      // но чтобы не усложнять, просто дадим понятное сообщение
+      console.error("wallet_switchEthereumChain error:", switchErr);
       throw new Error(
-        `Wrong network inside miniapp. Expected Base (8453), got ${parseInt(
-          chainIdHex,
-          16
-        )}.`
+        "Please switch your wallet to Base mainnet (chainId 8453) and try again."
       );
     }
+  } else {
+    throw new Error(
+      "Wallet does not support network switch. Please switch to Base mainnet manually."
+    );
   }
-
-  const provider = new ethers.BrowserProvider(ethProvider);
-  const signer = await provider.getSigner();
-  return { provider, signer };
 }
 
 async function mintNft() {
@@ -240,7 +215,10 @@ async function mintNft() {
   mintStatus.style.color = "#f5f5ff";
 
   try {
-    const { signer } = await getProviderAndSigner();
+    const { provider, signer, rawProvider } = await getProviderAndSigner();
+
+    // Убедиться, что мы на Base mainnet
+    await ensureBaseNetwork(rawProvider, provider);
 
     const contract = new ethers.Contract(
       NFT_CONTRACT_ADDRESS,
@@ -253,8 +231,8 @@ async function mintNft() {
 
     const tx = await contract.mint({ value: price });
     mintStatus.textContent = "Minting... waiting for confirmation...";
-
     const receipt = await tx.wait();
+
     if (receipt.status === 1) {
       mintStatus.textContent = "✅ NFT minted successfully!";
       mintStatus.style.color = "#00e0a0";
@@ -263,8 +241,14 @@ async function mintNft() {
       mintStatus.style.color = "#ff8b8b";
     }
   } catch (err) {
-    console.error(err);
-    mintStatus.textContent = "Error: " + (err?.message || String(err));
+    console.error("Mint error:", err);
+    let msg = "Unknown error";
+    if (err && typeof err === "object") {
+      msg = err.message || JSON.stringify(err);
+    } else if (typeof err === "string") {
+      msg = err;
+    }
+    mintStatus.textContent = "Error: " + msg;
     mintStatus.style.color = "#ff8b8b";
   }
 }
