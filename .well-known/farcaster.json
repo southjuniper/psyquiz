@@ -4,33 +4,29 @@
     "payload": "eyJkb21haW4iOiJwc3lxdWl6LWZhd24udmVyY2VsLmFwcCJ9",
     "signature": "4XTFPDUWjC5IRTA70UweFiSXeyI0kucmYnmFeLv3+UtjK/p8HplyVyA9pk5tQvTkl7vEpUbc2ZcMiMcApxjvkhs="
   },
-
   "baseBuilder": {
     "ownerAddress": "0x7688582b861c4F753583069BcAB8061DE7FAE4531"
   },
-
   "miniapp": {
     "version": "1",
-    "name": "Psy Test & NFT Badge",
+    "name": "Psy Quiz",
     "homeUrl": "https://psyquiz-fawn.vercel.app/",
     "iconUrl": "https://psyquiz-fawn.vercel.app/icon.png",
     "splashImageUrl": "https://psyquiz-fawn.vercel.app/icon.png",
     "splashBackgroundColor": "#1f1b4a",
 
     "subtitle": "Short mindset quiz",
-    "description": "A short psychological mindset test with a mintable NFT badge.",
-    
-    "tagline": "Mindset test & NFT badge",
+    "description": "A simple quiz that gives you a mindset profile and lets you mint a badge on Base.",
+    "tagline": "Mindset quiz badge", 
+
+    "primaryCategory": "games",
+    "tags": ["quiz", "mindset", "nft"],
 
     "imageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
     "heroImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
-
-    "ogTitle": "Psy Test & NFT Badge",
-    "ogDescription": "Complete a mindset quiz and mint your NFT badge.",
+    "ogTitle": "Psy Quiz",
+    "ogDescription": "Short mindset quiz with a mintable badge.",
     "ogImageUrl": "https://psyquiz-fawn.vercel.app/preview.png",
-
-    "primaryCategory": "games",
-    "tags": ["psy", "quiz", "nft"],
 
     "screenshotUrls": [
       "https://psyquiz-fawn.vercel.app/preview.png"
